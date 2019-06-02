@@ -1,0 +1,963 @@
+---
+title: "Capstone Project - France Traffic Accident Analysis"
+author: "Trevor Cummins"
+date: "30th of May 2019"
+always_allow_html: yes
+output:
+  pdf_document: 
+    toc: true
+    toc_depth: 3  # upto three depths of headings (specified by #, ## and ###)
+    number_sections: true  ## if you want number sections at each table header
+  html_document: 
+    toc: true
+    toc_depth: 3  # upto three depths of headings (specified by #, ## and ###)
+    number_sections: true  ## if you want number sections at each table header
+    theme: united  # many options for theme, this one is my favorite.
+link_citations: yes
+abstract: |
+  HarvardX PH125.9x Capstone Project: Choose your own project - France Traffic Accident Analysis and Severity Prediction.
+  An exploratory data analysis is performed on the 2017 French Traffic Accident datasets published by the French Government. 
+  Generalised Linear Model (GLM) and RPart classification machine learning models are developed based on training sets to predict the severity of an    accident and validated against a test set of actual accident outcomes. The objective is to develop a model to simluate a call received by the emergency services and enable first response services to be managed based on the expected severity of the accident.
+---
+
+# Executive Summary
+## Introduction
+This Capstone project is the second of two project submissions required to complete the [HarvardX](https://harvardx.harvard.edu) PH125.9x Professional Certificate in Data Science. The course was delivered by [Professor Rafael A. Irizarry](https://www.hsph.harvard.edu/rafael-irizarry/), Professor of Applied Statistics at Harvard and the Dana-Farber Cancer Institute. The course is hosted and delivered via the [edX](https://www.edx.org) open online course provider founded in May 2012 by scientists from Harvard and MIT.  
+
+Road accident fatalities within the European Union are amongst the lowest levels recorded globally. However annually more than 25 000 people still lose their lives on EU roads, while another 135 000 are seriously injured (European Commission 2018). This means that for every person killed in traffic crashes, five more suffer serious injuries, resulting in long term rehabiliation and healthcare needs. Depsite the downward trend the figures are still extremely high and a significant factor in annual mortality rates internationally. This project reviews the 2017 road accident datasets provided by the French government and build an understanding from the collision data to develop a model that predicts the severity of an accident that has occurred to aid emergency services manage the first responder services needed.
+
+## Project Goals
+The goal of the project is to choose your own project to apply machine learning techniques that go beyond standard linear regression.
+This project compares the accuracy of Generalised Linear Model (GLM) and RPart classification to predict the severity of an accident that has ocurred on a French road. The goal is to provide a machine learning tool that would enable the emergency services to estimate the potential severity of a call received and send the appropriate emergency response units to the location.
+
+The project submission aims to:
+
+- provide a demonstration and application of Data Science modelling techniques and R programming skills learned throughout the course;
+
+- communicate the project methodology followed; and
+
+- present insights gained from the analysis of the dataset. 
+
+The project introduces Geographic Information System (GIS) spatial data analysis to provide detailed insights into the data through shapefile rendering in order to add an additional option for data exploration and visual analysis.
+
+## Submission requirements
+The following files are submitted for assessment and graded by a scoring rubric that has been defined by course staff:
+
+1. A report in the form of an Rmd (R Markdown) file
+
+2. A report in the form of an Adobe PDF document knit from the Rmd file
+
+3. An R script or Rmd file that generates predicted injury severity for French traffic accidents and calculates the model accuracy
+
+Each submission (reports and script) will be graded by course peers and a course staff member. 
+
+The traffic accident severity predictions are compared to the true ratings in a test validation set using model accuracy. 
+
+The report documents the analysis and presents the findings, along with supporting statistics and figures including the accuracy generated for the multiple models assessed. 
+
+## Dataset
+[data.gouv.fr](https://www.data.gouv.fr/en/) is an open platform for French public data intended to encourage the reuse of data beyond the primary use of the data by the administration. The [French traffic datasets](https://www.data.gouv.fr/en/datasets/base-de-donnees-accidents-corporels-de-la-circulation) from 2017 are selected as it provided detailed accident information for a calendar year. It also presents several data science challenges as the figures require significant data cleaning and contains mostly categorical data. The categorical data must be treated and binarised in order to apply the Generalised Linear Model (GLM) and RPart classification models. The data is sourced from the accident reports made by the driver/police unit (police, gendarmerie, etc.) who intervened at the accident site. This data is collected in a sheet entitled "bulletin of accident analysis". All of these forms constitute the national file of personal injury traffic known as "BAAC file" administered by the National Interministerial Observatory of Road Safety "ONISR".
+
+The 2017 French Regions, Department and [Communes](https://www.insee.fr/fr/information/2666684) were sourced from [INSEE](https://www.insee.fr/fr/accueil) (Institut National de la Statistique et des Etudes Economiques) and the population, region and department information joined together and the resulting file stored on the [github project directory](https://github.com/iverni/PH125.9x_CYO/tree/master/Data%20files). The National Institute of Statistics and Economic Studies (INSEE) collects, produces, analyzes and disseminates information on the French economy and society. 
+
+The maps of France used in the exploratory data analysis section of this project were also sourced from the data.gouv.fr platform. However due to the extremely large file size of the shapefiles the original file was reduced to a significantly smaller size to greatly improve the performance of rendering the graphics. The files are also stored in the [github project directory](https://github.com/iverni/PH125.9x_CYO/tree/master/Data%20files).
+Shapefiles are used extensively to store spatial information and can be used to plot data on maps (Viswanathanm et al). It is a geospatial vector data format spatially describing data such as points, lines, and polygons, representing for example borders, landmarks, roads, and lakes. 
+
+- https://mapshaper.org - Excellent online tool that was used to reduce the shapefile size to 20% enabling map rendering in seconds rather than minutes.
+All four files (.shp, .dbf, .prj, .shx) are necessary when processing the shapefile and enabling data to be linked to the shapefile elements.
+
+| Data File                  | Notes                                                                      | 
+| :------------------------- | -------------------------------------------------------------------------: |
+| communes2017.xlsx          | Offical list of French Regions, Departments and Communes published in 2017 |
+| departements-100m.shp      | Shape format; the feature geometry itself |
+| departements-100m.dbf      | Attribute format; columnar attributes for each shape,#dBASE format |
+| departements-100m.prj      | Projection description of coordinates|
+| departements-100m.shx      | Shape index format; a positional index of the feature geometry to allow seeking forwards and backwards quickly|
+| vehicles.csv               | Details of the vehicles involved in the accidents |
+| users.csv                  | Details of the people involved in the accidents. Reported by Accident and Vehicle |
+| places.csv                 | Detailed information of the location and infrastructure where the accident occurred |
+| characteristics.csv        | Date, location (Department, Commune), weather, atmospheric conditions |
+
+## Data Science Pipeline
+A data science pipeline is the overall process to prepare, import, tidy, visualise, model, interpret and communicate data (Wickham and Grolemund 2017). As defined by Zacharias Voulgaris, it "is a complex process comprised of a number of inter-dependent steps, each bringing us closer to the end result, be it a set of insights to hand off to our manager or client, or a data product for our end-user." (Voulgaris 2017, ch. 2)
+
+For the purpose of this report, methodologies will refer specifically to machine learning methodologies. I make the distinction here between the definition of **pipeline** and **methodology** due to my background in enterprise applications where methodology in the context of software development lifecycle (SDLC) refers to the waterfall or agile methodologies.
+
+The following pipeline steps where followed for the project and have been documented in separate sections on this report.
+
+| Pipeline          | Step                                  | Goal       |
+| :------------     | :-----------:                         | -------------------: |
+| Data Source:      ||| 
+|                   | Data Extraction                       | **ETL: Source** |
+|                   | Data Load                             | **ETL: Import** |
+| Data Preparation: ||| 
+|                   | Data processing and wrangling         | **ETL: Clean& Transform**|
+|                   | Data Exploration                      | **Initial Discovery** |
+|                   | Data Visualisation                    | **Visualise** |
+| Data Modeling: ||| 
+|                   | Feature Extraction & Engineering      | **Identify Outcome/Features** |
+|                   | Develop Models                        | **Capture Pattern** |
+|                   | Data Learning                         | **Model Evaluation** |
+| Communication: ||| 
+|                   | Summary                               | **Results** |
+|                   | Insights                              | **Intuition** |
+|                   | Citations and References              | **References** |
+
+Table: Data Science Pipeline
+
+
+\newpage
+# Packages
+| Package          | Note                                                      | 
+| :------------    | :------------------------------------------------------  |      
+| bbcplot          | British Broadcasting Corporation package for extending ggplot2 themes |
+| broom            | Takes the messy output of built-in functions in R and turns them into tidy data frames.|
+| caret            | Set of functions to streamline prediction model creation |
+| devtools         | Collection of R development tools|
+| GGally           | Multivariate plots |
+| ggalt            | Support geom_dumbbell() plots |
+| pacman           | Contains tools to more conveniently perform tasks associated with add-on packages.|
+| plotly           | Graphing library makes interactive, publication-quality graphs online |
+| pROC             | Tools for visualizing, smoothing and comparing receiver operating characteristic (ROC curves) |
+| readxl           | Excel xlsx integration from Hadley Wickham |
+| rgdal            | Provides bindings to the 'Geospatial' Data Abstraction Library ('GDAL') |
+| rpart.plot       | Extends plot.rpart() and text.rpart() in the 'rpart' package. |
+| sjmisc           | Collection of miscellaneous utility functions integrated into a tidyverse workflow |
+| snakecase        | Collection of miscellaneous utility functions, supporting data transformation |
+| stringi          | Character String Processing Facilities. Used for formatting lat/long in this project |
+| tictoc           | Performance Benchmarking |
+| vcd              | Support mosaics |
+| xtable           | Added for RMarkdown file functionality | 
+| kableExtra       | Added for RMarkdown file functionality |
+
+Table: Package Installation notes: Additional information for packages required to support this report
+
+```{r packages, message=FALSE, warning=FALSE}
+if(!require(pacman))install.packages("pacman")
+if(!require(devtools))install.packages('devtools')
+devtools::install_github('bbc/bbplot')    #Load the BBC plots for use with ggplot2
+pacman::p_load('devtools',                                # Development 
+               'data.table','readxl',                     # Data Importation
+               'tidyverse', 'dplyr', 'tidyr', 'stringr',  # Data Manipulation
+               'sjmisc', 'snakecase', 'lubridate',        # Data Manipulation
+               'stringi',                                 # Data Manipulation
+               'ggplot2', 'bbplot', 'ggalt','GGally',     # Visualisation 
+               'vcd',                                     # Visualisation 
+               'rgdal', 'plotly',                         # Cartography         
+               'caret', 'rpart.plot', 'pROC',             # Classification and Regression 
+               'xtable', 'kableExtra',                    # RMarkdown  
+               'tictoc')                                  # Performance measuring
+```
+
+\newpage
+# Data Retrieval
+The files are downloaded from the [data.gouv.fr](https://www.data.gouv.fr/en/) is an open platform and [github project directory](https://github.com/iverni/PH125.9x_CYO/tree/master/Data%20files) created for this project submission. A function module has been written to check if the files have already been downloaded. This avoids the need to download the files from remote servers each time the project is executed.
+
+**Key note**: Download the files to your working directory. The files does not need to be added to a subfolder for processing. 
+
+**Learning Point**: **read_csv2()** is used instead of read_csv() as the files are semi-colon seperated (common approach in the European Union). read_csv2() is preferred to read.csv2 because a tibble is created but also due to the intepretation of the commune codes. A code of 08 is treated by default as 8 using read.csv2 which is not desired for this project as the code 08 is the formal code used by the French authorities.
+
+There is an issue of codepage when downloading the data. E.g. "d<e9>partementale" should be "départementale". Therefore the codepage locale is set to Latin 1 using **readr::locale** to ensure all West European characters can be interpreted when loading the file. For a global dataset a more comprehensive locale would be necessary.
+
+The commands **tic()** and **toc()** are used to record the processing time for some critical blocks of code. This was useful to benchmark and compare different techniques used in the code. The code is not displayed in the generated report (using **echo=FALSE** in the RMarkdown chunk definition)^[The LaTeX font size can be adjusted in RMarkdown by setting the size to tiny, scriptsize, footnotesize, small, normalisize, large, huge. See the examples provided in this RMD report].
+
+\scriptsize
+```{r get_data, message=FALSE, warning=FALSE}
+#Set up the directory and file locations
+datagov_url <- "https://www.data.gouv.fr/en/datasets/r/"
+vehicles_url <- "109520e1-47ae-4294-a5b6-6d10c7bae9a6"        # Comma delimited
+users_url <- "07bfe612-0ad9-48ef-92d3-f5466f8465fe"           # Comma delimited
+places_url <- "9b76a7b6-3eef-4864-b2da-1834417e305c"          # Comma delimited
+characteristics_url <- "9a7d408b-dd72-4959-ae7d-c854ec505354" # Comma delimited
+
+#2017 Communes were sourced from INSEE (Institut National de la Statistique et des Etudes Economiques) 
+github_url   <- "https://github.com/iverni/PH125.9x_CYO/blob/master/Data%20files/" 
+commune_file <- "communes2017.xlsx?raw=true"
+
+#All four files are necessary when processing the shapefile and enabling data to be linked to the shapefile elements.
+shapefile_shp <- "departements-100m.shp?raw=true"
+shapefile_dbf <- "departements-100m.dbf?raw=true"
+shapefile_prj <- "departements-100m.prj"
+shapefile_shx <- "departements-100m.shx?raw=true"
+
+#Function module to check if the file has already been downloaded. 
+download_datefile <- function(url_ref, new_filename) {
+  if(!file.exists(new_filename)){
+    download.file(url_ref, new_filename)
+  }else{
+    print(new_filename)
+    print("File already exist and do not need to be downloaded again")
+  }
+}
+#Download the French region, department and commune information
+download_datefile(paste0(github_url,commune_file),"communes2017.xlsx")
+communes <- read_excel("communes2017.xlsx", sheet = 1)
+
+#Retreive the shapefiles. They will be read during exploratory data analysis
+download_datefile(paste0(github_url,shapefile_shp),"departements-100m.shp") 
+download_datefile(paste0(github_url,shapefile_dbf),"departements-100m.dbf") 
+download_datefile(paste0(github_url,shapefile_prj),"departements-100m.prj") 
+download_datefile(paste0(github_url,shapefile_shx),"departements-100m.shx") 
+
+# Download the vehicles file. Ensure that the accident reference is a character so that it is not treated as a double.
+# col_types ensures that the accident number 201700000001 is not imported as 2.017e+11.
+download_datefile(paste0(datagov_url,vehicles_url),"vehicles.csv")
+vehicles <- read_csv("vehicles.csv", col_types = cols(Num_Acc = "c"))
+
+#Download user data
+download_datefile(paste0(datagov_url,users_url),"users.csv")
+users <- read_csv("users.csv", col_types = cols(Num_Acc = "c"))
+
+#Download location data
+download_datefile(paste0(datagov_url,places_url),"places.csv")
+places <- read_csv("places.csv", col_types = cols(Num_Acc = "c"))
+
+#Download accident characteristic information.
+download_datefile(paste0(datagov_url,characteristics_url),"characteristics.csv")
+characteristics <- read_csv("characteristics.csv", col_types = cols(Num_Acc = "c"), locale = readr::locale(encoding = "latin1"))
+#Concatenate Department and Commune columns together to support a join of the French state communes. 
+#Use substr to only select the first two characters of the department field
+characteristics <- characteristics %>% mutate(depcom = paste0(substr(dep, start = 1, stop = 2),com)) 
+toc()
+```
+\normalsize
+
+\newpage
+# Data Cleansing
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+tic("Data Cleansing")  #Initiate the benchmarking
+```
+Each file must be checked and cleaned before joining the data together to support exploratory data analysis. Each files is reviewed for missing data, near zero variance features and inconsitencies in the data content or format. The data cleanse for these files was one of the most time consuming activities for this project submission. Data preparation and wrangling is a critical and fundamental phase of a data science project. Without it you cannot work with your own data (Hadley and Grolemund 2017).
+
+##Characteristic File
+For obtaining summary information the **str()** command was preferred over **glimpse()** due to processing performance. All efforts are made to reduce the performance requirements when running the RMarkdown report. Runtime memory is also managed using the **rm()** command.
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+summary(characteristics)
+```
+
+Missing values are checked to identify any field that require cleaning. From the analysis of the NAs only the atm (atmospheric conditions) and col (collison) features will be corrected. The adr (address) field is the postal address filled in for accidents occurring in built up areas. This is not required (but will be checked by performing a NZV). 
+```{r check_nas, message=FALSE, warning=FALSE}
+#Calculate all the NAs present in each column/feature and then assess if any action is required.
+sapply(characteristics, function(x) sum(length(which(is.na(x)))))
+```
+The GPS, lat and long co-ordinate information is not required for this project. GIS data will be summarised at a department level 
+
+Replace the atm feature with the median. A histogram analysis of the values shows that the median is "normal" atmospheric conditions.
+\scriptsize
+```{r check_nas2, message=FALSE, warning=FALSE}
+characteristics %>% ggplot(aes(atm)) + 
+  geom_histogram(fill="#1380A1", binwidth = .5) +
+  geom_hline(yintercept = 0, size = 1, colour="#333333") +
+  scale_x_continuous(breaks = seq(0, 9, 1),
+                     limits=c(0, 9)) +
+  xlab("Atmospheric Condition") +
+  labs(title="Accidents by Atmopheric Cond.") + 
+  bbc_style()
+
+characteristics$atm <- ifelse(is.na(characteristics$atm), median(characteristics$atm, na.rm=TRUE), characteristics$atm)
+```
+\normalsize
+Repeating the check for Na values shows the issue has been corrected
+```{r check_nas3, message=FALSE, warning=FALSE}
+sapply(characteristics, function(x) sum(length(which(is.na(x)))))
+```
+
+The median for the collision type is 6 - Other collision. However the value 6 is chosen as the replacement value because of "other collision" is the best category to apply for the missing data, irrespective of the median.
+\scriptsize
+```{r update_col, message=FALSE, warning=FALSE}
+characteristics$col <- ifelse(is.na(characteristics$col), median(characteristics$col, na.rm=TRUE), characteristics$col)
+```
+\normalsize
+
+Latitude and longitude fields need to be formatted correct. The **stringi** package provides an excellent command that enables characters to be replaced with the open to add another value. The accident time of day is stratified as either day or night to reduce the complexity when applying prediction models. The function **sprintf()** to format the values in the existing file to a required format to supoort the creation of a POSIX date and timestamp. 
+```{r update_latlong, message=FALSE, warning=FALSE}
+#For example, the first two characters of longitude are extracted e.g.
+characteristics$long <- stri_sub_replace(characteristics$long, 3,1, omit_na=FALSE, value = ".")
+characteristics$lat <- stri_sub_replace(characteristics$lat, 3,1, omit_na=FALSE, value = ".")
+#Convert hrmn to hours and minutes
+#Format the timestamp 
+convert_date_format <- function(year, day, month, hour){
+  #Build up the ISO 8601 formatting field
+  month_2c <- sprintf("%02d",month)
+  day_2c <- sprintf("%02d",day)
+  hour_4c <- sprintf("%04d",hour) 
+  date_temp <- paste0(year, month_2c, day_2c, " ", hour_4c)
+  as_datetime(date_temp, "%y%d%m %H%M", tz="CET")
+}
+#Group by day or night
+#Round the time to the nearest hour in order to group by hour later 
+characteristics <- characteristics %>%
+    mutate(day_night = ifelse(lum == 1, "day","night"),
+           date_cet = as.POSIXct(convert_date_format(an, mois, jour, hrmn)),
+           hrs = as.numeric(hour(round_date(date_cet, unit = "1 hour"))))
+```
+
+##Places File
+```{r update_places, message=FALSE, warning=FALSE}
+#Calculate all the NAs present in each column/feature and then assess if any action is required.
+sapply(places, function(x) sum(length(which(is.na(x)))))
+```
+The following fields will be cleaned:
+
+- circ - Traffic Regime. the missing and 0 value entries in the column denote no recording of the traffic regime. Valid values are: 1 - One way, 2 - Bidirectional, 3 - Separated carriageways 4 With variable assignment channels. The missing values are defaulted to category 0 - no indication of direction
+-   nbv - total number of traffic lanes.
+-   vosp - Indicates the existance of a reserved lane. 
+-   prof - Profondeur / Terrain type - 1 Flat, 2 Slope, 3 hill top, 4 Hill bottom 
+-   surf - Surface condition 9 indicates "other". All 0 values and NAs should be moved to 9
+-   infra - Infrastructure e.g. underground, bridge
+-   situ - Situation of the accident 
+
+```{r update_places2, message=FALSE, warning=FALSE}
+places$circ <- ifelse(is.na(places$circ), 0, places$circ)
+places$nbv <- as.numeric(ifelse(is.na(places$nbv), 0, places$nbv))
+places$vosp <- ifelse(is.na(places$vosp), 0, places$vosp)
+places$prof <- ifelse(is.na(places$prof), 0, places$prof)
+places$surf <- ifelse(is.na(places$surf), 9, places$surf)
+places$surf <- ifelse(places$surf == 0, 9, places$surf)
+places$infra <- ifelse(is.na(places$infra), 0, places$infra)
+places$situ <- ifelse(is.na(places$situ), 0, places$situ)
+```
+
+The following columns are removed due to the large NA occurences but also due to their perceived lack of importance for prediction:
+
+- voie - identifies the number of the road
+- V1 - numeric index of the route number
+- V2 - Letter alphanumeric index of the road
+- pr - Home pr number (used for measurements on French roads)
+- pr1 - Number of the distances in metres "bornes"
+- plan- Road contour
+- lartpc- Central solid land width
+- larrout - Witdh of the roadway
+- env1 - Proximity to schools. Unfortunately the dataset is not clear and the feature should be removed
+```{r update_places3, message=FALSE, warning=FALSE}
+places <- places %>% select(-voie, -v1, -v2, -pr, -pr1, -plan, -lartpc, -larrout, -env1)
+```
+
+##Users File
+```{r update_users, message=FALSE, warning=FALSE}
+#Calculate all the NAs present in each column/feature and then assess if any action is required.
+sapply(users, function(x) sum(length(which(is.na(x)))))
+```
+
+To contrast how values can be checked for relevancy run a Near Zero Variance:
+
+- freqRatio: This is the ratio of the percentage frequency for the most common value over the second most common value.
+- percentUnique: This is the number of unique values divided by the total number of samples multiplied by 100. 
+
+For percentUnique, the lower the percentage, the lower the number of unique values. A high freqRatio indicates that the distributions is heavily skewed. It does not mean we want to remove the data, but it provides an indication of the distribution.
+
+If the NZV is TRUE then it should be removed.
+```{r update_users_nzv, message=FALSE, warning=FALSE}
+nzv_users <- nearZeroVar(users, saveMetrics = TRUE)
+nzv_users
+```
+Now compare NZV of the "places" file. Was there a pattern missed. It recommends taking out vosp and infra. Incidently, a **nzv()** check on characteristics identified year and GPS and NZV. Not surprising given year = 2017. This is a good demonstration of NZV.
+```{r update_other_nzv, message=FALSE, warning=FALSE}
+nzv_places <- nearZeroVar(places, saveMetrics = TRUE)
+nzv_places
+nzv_characteristics <- nearZeroVar(characteristics, saveMetrics = TRUE)
+nzv_characteristics
+```
+The field trajet is the reported reason for travelling on the accident form.  9 indicates "other". All 0 values and NAs should be moved to 9.
+```{r update_users2, message=FALSE, warning=FALSE}
+users$trajet <- ifelse(is.na(users$trajet), 9, users$trajet)
+users$trajet <- ifelse(users$trajet == 0, 9, users$trajet)
+```
+There are 37 cases of the age not being recorded. The median value is used.
+```{r update_users3, message=FALSE, warning=FALSE}
+median(users$an_nais, na.rm=TRUE)
+users$an_nais <- ifelse(is.na(users$an_nais), median(users$an_nais, na.rm=TRUE), users$an_nais)
+```
+The severity of accidents is grouped to critical (fatal or serious injury) and normal response (light hospitalisation, no injury). The age profile is split into strata.
+\scriptsize
+```{r update_users4, message=FALSE, warning=FALSE}
+users <- users %>% mutate(gender = ifelse(sexe == 1, "male","female"),
+                          severity = case_when(
+                            grav == 1 ~ "normal",   #No injury
+                            grav == 2 ~ "critical", #Fatality
+                            grav == 3 ~ "critical", #Seriously injured
+                            grav == 4 ~ "normal"    #Light injury
+                          ),  
+                          age = 2017-an_nais, 
+                          age_profile = case_when(
+                            age <= 15 ~ "child",
+                            age > 15 & age <= 19 ~ "teenager",
+                            age > 19 & age < 40 ~ "under40",
+                            age >= 40 ~ "over40"))
+
+#histogram of year of birth
+users %>% ggplot(aes(an_nais)) + 
+  geom_histogram(fill="#1380A1", binwidth = .6) +
+  geom_hline(yintercept = 0, size = 1, colour="#333333") +
+  xlab("Year of Birth") +
+  labs(title="Year of Birth of involved parties",  
+       subtitle="Including drivers and passengers") +
+  geom_vline(aes(xintercept = median(an_nais)),col='black', size = 2) +
+  geom_text(data = data.frame(x=median(users$an_nais), y=0), mapping = aes(x, y, label=paste0("Median value:",x)), color="black", hjust =-.1, vjust = 1.5) + 
+  bbc_style()
+```
+\normalsize
+The following columns are removed due to the large NA occurences but also due to their perceived lack of importance for prediction:
+
+- place - #56% missing
+- secu - dataset is not sufficiently clear to use
+- locp - Pedestrian Location - remove due to NZV analysis
+- actp - Action of the Pedestrian - remove due to NZV analysis
+- etapt - Was the pedestrian alone, in a group - removed as other pedestrian fields are removed
+```{r update_users5, message=FALSE, warning=FALSE}
+users <- users %>% select(-place, -secu, -locp, -actp, -etatp)
+```
+
+##Vehicles File
+```{r update_vehicles, message=FALSE, warning=FALSE}
+#Calculate all the NAs present in each column/feature and then assess if any action is required.
+sapply(vehicles, function(x) sum(length(which(is.na(x)))))
+#Perform a near zero variance analysis on the vehicles dataset
+nzv_vehicles <- nearZeroVar(vehicles, saveMetrics = TRUE)
+nzv_vehicles
+```
+
+The missing values are defaulted to category 0 - no indication.
+
+- choc - Point of the impact. 0 denotes not specified
+- catv - Vehicle category.  99 indicates "other vehicles". All NAs should be moved to 99
+- obsm - Mobile object struck.  9 indicates "other". All 0 values and NAs should be moved to 9
+\scriptsize
+```{r update_vehicles2, message=FALSE, warning=FALSE}
+vehicles$choc <- ifelse(is.na(vehicles$choc), 0, vehicles$choc)
+vehicles$manv <- as.numeric(ifelse(is.na(vehicles$manv), 00, vehicles$manv)) #Encode the categorical
+vehicles$catv <- as.numeric(ifelse(is.na(vehicles$catv), 99, vehicles$catv)) #Encode the categorical
+vehicles$obsm <- ifelse(is.na(vehicles$obsm), 9, vehicles$obsm)
+vehicles$obsm <- ifelse(vehicles$obsm == 0, 9, vehicles$obsm)
+```
+\normalsize
+
+The following columns are removed due to the large NA occurences but also due to their perceived lack of importance for prediction:
+
+- senc - Direction of the traffic (flow)
+- obs - Struck a fixed Obstacle - remove due to NZV analysis
+- occutc - Number of occupants in the public transport - remove due to NZV analysis
+```{r update_vehicles3, message=FALSE, warning=FALSE}
+vehicles <- vehicles %>% select(-obs, -occutc, -senc)
+toc()
+```
+
+# Data Preparation
+Now that the official files have been cleansed the data will be joined together to create data tables to support exploratory data analysis. 
+```{r data_prep, message=FALSE, warning=FALSE}
+tic("Joining data")
+```
+The following section contains the data table joins necessary to support subsequent exploratory data anaylsis and modelling. One to one cardinality between the accident characteristics, commune and place files. The data is summarised as follows:
+
+- Summarised data at department and commune level : Number of accidents, count of injuries by severity, mortality rate
+- Summarised data at department level only : Number of accidents, count of injuries by severity, mortality rate
+- Full accident information : Join of the Characteristics, Place, User and Vehicle datasets to support injury analysis by person and vehicle. This dataset is also used in the full model analysis
+
+The accident and mortality rates are calculated per 100,000 inhabitants. The mortality rate is calculated as follows:
+
+\[ Mortality rate_{i} = \sum_{j=1,}^N (Fatalities_{i,j}) * [ 100,000 / \sum_{j=1,}^NPopulation_{i,j} ] \]
+
+Where:
+
+$N$ = Full dataset of French Communes where accidents occurred
+
+$i$ = Department
+
+$j$ = Commune
+
+$Fatalities_{i,j}$ = Total deaths for each department summed from each department commune. The source of the data is from the Vehicles table field **grav** (value equal to 2)
+
+$Population_{i,j}$ = Department popluation recorded for 2016 summed from each department commune. The source of the data is from the *communes2017.xlsx* file.
+\scriptsize
+```{r data_prep2, message=FALSE, warning=FALSE}
+accidents <- characteristics %>% 
+  left_join(places, by = 'Num_Acc') 
+#Calculate summary data a department and commune level - number of accidents
+depcom_summary <- characteristics %>%
+  group_by(depcom) %>%
+  summarise(accidents = n()) %>%                     #Number of accidents
+  left_join(communes, by ="depcom") %>%
+  na.omit() %>%                                      #Skip accidents if no valid commune can be found 
+  mutate(acc_pp = accidents * 100000 / pop2016)      #Accident rate per 100,000 inhabitants
+  
+#Count the injury profile (number of people) by department and commune.
+depcom_injuries <- accidents %>%
+  left_join(users, by = 'Num_Acc') %>%
+  left_join(vehicles, by = c("Num_Acc","num_veh")) %>%
+  group_by(depcom, grav) %>%
+  summarise(n = n()) %>%                               #Count the different injuries by depart/commune
+  spread(grav, n) %>%                                  #Spread the injury field to columns
+  rename('light' = '1',                                #Rename the columns
+         'fatality' = '2',
+         'serious' = '3',
+         'uninjured' = '4') %>%
+  mutate(light, light = ifelse(is.na(light), 0, light), #Replace NAs introduced by the spread with zero value
+         fatality, fatality = ifelse(is.na(fatality), 0, fatality),
+         serious, serious = ifelse(is.na(serious), 0, serious),
+         uninjured, uninjured = ifelse(is.na(uninjured), 0, uninjured))  
+
+#Calculate summary data a department and commune level - number of accidents
+depcom_summary <- depcom_summary %>%
+  left_join(depcom_injuries, by ="depcom") %>%
+  mutate(mortality = fatality * 100000 / pop2016,      #Fatalties per 100,000 inhabitants
+         serious_inj_rate = (fatality + serious) / (fatality + serious + light + uninjured))
+rm(depcom_injuries)
+
+#Calculate summary data a department level only. This will make EDA much easier later.
+dep_summary <- depcom_summary %>%
+            group_by(department, depart_name) %>%
+            summarise(population = sum(pop2016),
+                      accidents  = sum(accidents),
+                      light      = sum(light),
+                      fatality   = sum(fatality),
+                      uninjured  = sum(uninjured),
+                      serious    = sum(serious)) %>%
+            mutate(mortality = fatality * 100000 / population,
+                   serious_inj_rate = (fatality + serious) / (fatality + serious + light + uninjured))
+
+#Join full data together (characteristics, plqce, users and vehicle type to support analysis of accident profiles)
+#Format department to a 2 character code so that it may be used for joining with the french department shapefiles
+accidents_fulldata <- accidents %>%
+  mutate(dep = stri_sub(dep,1,2)) %>%   
+  left_join(users, by = 'Num_Acc') %>%
+  left_join(vehicles, by = c("Num_Acc","num_veh"))
+toc()
+```
+\normalsize
+
+\newpage
+
+# Data Exploration and Visualisation
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+tic("Exploratory Data Analysis")
+total_deaths <- as.numeric(users %>% filter(grav==2) %>% summarise(n = n()))  #How many people where killed
+mortality_avg <- total_deaths * 100000 / sum(communes$pop2016)                #Road Deaths per 100,000 inhabitants
+accident_avg <- n_distinct(characteristics$Num_Acc) * 100000 / sum(communes$pop2016) #Accidents per 100,000 inhabitants
+```
+The following summary information will be used throughout the exploratory data analysis section. The code is not displayed for all outputs in order to reduce the size of the report but can be read in the RMarkdown report. 
+
+The population of France based on the Communes data file is approximately **`r format(as.integer(sum(communes$pop2016)), big.mark=",")`** inhabitants. The population data contained in the communes file is the summary of the 2016 population per commune and includes the French overseas territories.
+
+During the course of 2017 there was **`r n_distinct(characteristics$Num_Acc)`** accidents throughout France. The project focuses on mainland France and does not assess the French overseas territories. A total of **`r total_deaths`** tragically lost their lives in these accidents. This continues a steady downward trend from previous year accident mortality rates for France however it still represents an extremely high mortality rate of **`r mortality_avg`** per 100,000 inhabitants. This represents an ongoing challenge to government and emergency services and a tremendous amount of financial and political resource continues to be invested in this area to further reduce the rate.
+
+When considering the number of accidents per 100,000 inhabitants the average rate for France returned is **`r accident_avg`**.
+
+The following table shows the distribution of the injury severity for all people involved in the accidents, where:
+
+- 1 : Light injury occurred not requiring hospitalisation  
+- 2 : Fatality (died at the scene or within 30 days of the accident)
+- 3 : Serious injury occurred requiring hospitalisation
+- 4 : No injuries
+```{r eda1, message=FALSE, warning=FALSE}
+table(users$grav)   #Summary of injury severity.
+```
+
+A mixture of styles are used for the graphics to demonstrate different visualisation settings supported by ggplot2. The report requires the installation of the [BBC](https://www.bbc.com) defined R graphics package ^[The BBC Visual and Data Journalism cookbook for R graphics provides an excellent R package and an R cookbook to make the process of creating publication-ready graphics in the BBC in-house style using R’s ggplot2 library.]. 
+
+##Accident information
+Having identified day or night, plot the histogram for all accidents by day or night. Luminosity is daylight (lum =1). The visualisation shows that the majority of accidents occur during daylight.
+```{r eda2, message=FALSE, warning=FALSE}
+characteristics %>% ggplot(aes(day_night)) + 
+  geom_histogram(fill="#1380A1", stat = "count") +
+  geom_hline(yintercept = 0, size = 1, colour="#333333") +
+  labs(title="Accidents by Time of Day") + 
+  labs(subtitle="Day: (lum = 1 ) Luminosity is daylight") + 
+  bbc_style()
+```
+
+The accident information is assessed for temporal factors - by month, weekday, and time of day. The distribution is displayed first by the Day of the Week and hour of the accidents. The actual week day is determined from the formatting accident time field using the **wday()** function. The aim is to look for the lighter coloured heat zones. This is an indication of the larger frequency. The temporal analysis of the time of day shows two peak periods 08:00-09:00 and 17:00-19:00. Not surprisingly common work communiting hours.
+```{r eda3, message=FALSE, warning=FALSE}
+characteristics %>% mutate(day_of_week = wday(date_cet)) %>%
+  group_by(mois, day_of_week, hrs) %>%
+  summarise(num_accidents = n()) %>%
+  ggplot(aes(x=day_of_week, y=hrs, fill=num_accidents)) +   #Plots Weekday and the time of day
+  geom_tile() +
+  scale_fill_continuous(name="#Accidents") +
+  xlab("Day of Week  (Sunday = 1)")+
+  ylab("Hours (24h format)")+
+  labs(title="Temporal Analysis of Accidents",
+       subtitle = "Number of Accidents by Hour and Day of the week (Sunday = 1)") + 
+  scale_x_continuous(expand=c(0,0),breaks=1:7) + 
+  scale_y_continuous(expand=c(0,0),breaks=1:24) + 
+  theme(axis.text.x =element_text(angle = 90, hjust = 1)) 
+```
+
+When assessing by month it is interesting to note that Friday (day=6) features prominently. Of particular note is the number of accidents on Fridays in June. The output of code block in the RMarkdown has been switched off (**echo = false**) in order to improve the readability of the report. 
+
+```{r eda4, message=FALSE, warning=FALSE, echo=FALSE}
+characteristics %>% mutate(day_of_week = wday(date_cet)) %>%
+  group_by(mois, day_of_week) %>%
+  summarise(num_accidents = n()) %>%
+  ggplot(aes(x=mois, y=day_of_week, fill=num_accidents)) +  #Plots Weekday and the Month
+  geom_tile() +
+  scale_fill_continuous(name="#Accidents") +
+  xlab("Month")+
+  ylab("Day of Week (Sunday = 1)")+
+  labs(title="Temporal Analysis of Accidents",
+       subtitle = "Number of Accidents by Hour and Day of the week") + 
+  scale_x_continuous(expand=c(0,0),breaks=1:12) + 
+  scale_y_continuous(expand=c(0,0),breaks=1:7) + 
+  theme(axis.text.x =element_text(angle = 90, hjust = 1))
+```
+  
+##Injury information
+###List of the Communes with the greatest number of fatalities
+\tiny
+```{r eda5, message=FALSE, warning=FALSE, echo=FALSE }
+depcom_summary %>% arrange(desc(accidents)) %>% head(20) %>% select(commune_name, accidents, acc_pp, pop2016, mortality, serious_inj_rate)
+```
+\normalsize
+Marseille has the top number of recorded accidents. This is not surprising given that the entire city has been been grouped at commune level. The number of accidents at **292 per 100,0000 inhabitants** is far greater than the national average of **`r accident_avg` per 100,0000 inhabitants** and there is also the highest number of fatalities. However it is important to assess the mortality rate wich is **4.18**, less than the national average of **`r mortality_avg`** for the 2017. Also 18% of the injuries were serious (that is fatal or seriously hospitalised).
+
+Paris arrondissements feature significantly also and follow the observation of Marseille in that the injury rate and mortality rates are significantly lower than the national average. Therefore perhaps it is more interesting to look at high mortality rates where more than 5 accidents (thereby ignoring outliers).
+\tiny
+```{r eda6, message=FALSE, warning=FALSE, echo=FALSE}
+depcom_summary %>% filter(accidents > 5 & mortality > mortality_avg) %>% arrange(desc(accidents)) %>% head(20) %>% select(commune_name, accidents, acc_pp, pop2016, mortality, serious_inj_rate)
+```
+\normalsize
+Here we now see an entirely different list. Top of the list is Gennevilliers with 247 accidents and a mortality rate of 8.57. The serious injury rate is 7.26%. In contrast Saint-Pierre in Val-D'Oise had less accidents hozever more fatal (6 deaths/7.13 per 100,000 inhabitants), and a 27% serious injury rate.
+
+###List of the Departments with the greatest number of fatalities and discuss
+\tiny
+```{r eda7, message=FALSE, warning=FALSE, echo=FALSE}
+dep_summary %>% arrange(desc(accidents)) %>% head(20) %>% select(depart_name, accidents, population, mortality, serious_inj_rate)
+```
+\normalsize
+Intuition would have suggested Paris as the department with the top number of accidents. However not so obvious is that the mortality rate is significantly less than the national average. Compare the figures to Val-D'Oise were there was 144 fatalaties, with a 31% severe injury rate. This contrasts sharpely with the figures from Paris. It may be more interesting to view by the mortality rate
+\tiny
+```{r eda8, message=FALSE, warning=FALSE, echo=FALSE}
+dep_summary %>% arrange(desc(mortality)) %>% head(20) %>% select(depart_name, accidents, population, mortality, serious_inj_rate)
+```
+\normalsize
+When viewing by mortality rate the departments that are towards the top of the list are Alpine boarding departments (e.g. Haute-Saone, Alpes-De-Haute-Provence, and JURA, or Ariege in the French Pyrennes)
+
+##Cartography
+The following section presents the summary information at department level using a shapefile department map of France. The shapefile enables the map to be rendered in R and a dataset linked to the shapefile to enable GIS visualisation. The French overseas territories are removed from the the mapping as this would result in a small scale map given the distribution of the French overseas territories throughout the world. 
+
+\tiny
+```{r eda9, message=FALSE, warning=FALSE}
+library(webshot)
+shapefile_name <- paste0(getwd(), "/departements-100m.shp")
+france_shp <- readOGR(shapefile_name, stringsAsFactors = FALSE)  #Read the shapefile that has been downloaded
+france.adm3.shp.df <- broom::tidy(france_shp, region = "code_insee")
+france.adm3.shp.df <- france.adm3.shp.df %>% filter(!id %in% c("971","972","973","974","976")) #Exclude French overseas territories
+france.adm3.shp.df <- france.adm3.shp.df %>%           
+  left_join(dep_summary, by = c("id" = "department"))   #Link the data to the shapefile
+
+#Generate the ggplot and then apply the ggplotly function to make the map interactive for Mortality Rate
+gg <- ggplot(france.adm3.shp.df, aes(text = depart_name, label = serious_inj_rate, label2 = fatality, label3 = accidents)) + 
+  geom_polygon(aes(x = long, y = lat, group = group, fill= mortality), colour = "grey") + 
+  labs(title="French Accident Mortality Rate 2017")
+gg #Needed to output for PDF
+ggplotly(gg)  #Enables interactive maps in RMarkdown HTML format
+```
+\normalsize
+\newpage
+The next map shows the serious injury rate by Department.
+\tiny
+```{r eda10, message=FALSE, warning=FALSE}
+#Generate the ggplot and then apply the ggplotly function to make the map interactive for Serious Injury Rate
+gg2 <- ggplot(france.adm3.shp.df, aes(text = depart_name, label = serious_inj_rate, label2 = fatality, label3 = accidents)) + 
+  geom_polygon(aes(x = long, y = lat, group = group, fill= serious_inj_rate), colour = "grey") + 
+  labs(title="French Accident Serious Injury Rate 2017")
+gg2  #Needed to output for PDF
+ggplotly(gg2) #Enables interactive maps in RMarkdown HTML format
+```
+\normalsize
+
+##Accident victim profile
+A mosaic plot is a square subdivided into rectangular tiles the area of which represents the conditional relative frequency for a cell in the contingency table. Each tile is colored to show the deviation from the expected frequency. You can use the mosaic plot to discover the association between two variables.
+
+- Red tiles indicate significant negative residuals, where the frequency is less than expected 
+- Blue tiles indicate significant positive residuals, where the frequency is greater than expected (under the null model(independence))
+
+The colours represent the level of the residual for that cell / combination of levels. More specifically, blue means there are more observations in that cell than would be expected under the null model (independence). The intensity of the color represents the magnitude of the residual.
+
+Pearson standardized residuals: The strength of a relation in the mosaic is a measure of how much the observed values deviate from the values in case of independence. It shows the strength and direction of the association for the categorical information.
+
+\[ r_{ij} = (O_{i,j} - E_{i,j}) / \sqrt{E_{i,j}} \]
+
+Where:
+
+$O_{i,j}$ = observed frequency (found in the sample)
+
+$E_{i,j}$ = expected frequency (i = ith row; j = jth column of contingency table)
+
+```{r eda11, message=FALSE, warning=FALSE}
+mosaic(~severity + age_profile + sexe, data=accidents_fulldata, 
+       shade=TRUE, legend=TRUE)
+```
+
+So what can be interpreted from the mosaic that has been generated for severity, age profile and gender. Recall the severity of accidents is grouped to critical (fatal or serious injury) and normal response (light hospitalisation, no injury).
+
+This is best interpreted using some specific language. Within the over40 age group there is a significant association between critical severity and women (sexe=2). Also the "Child" age profile shows significant positive residual for both sexes. Male teenagers also have a frequency greater than expected for critical severity.
+
+\newpage
+##Child drivers and Child casualties
+This section will not be included as a feature in the model analysis however has been added in the EDA section for information purposes. An objective of this study is to identify and gain insight through the exploratory analysis of the data. 
+
+The first assessment is to identify the main category of vehicle that are driver by children under the age of 15. The objective is to identify the most common and dangerous vehicle so that I can hopefully gain insight and learning that can be applied to my own children to improve their transport safety options. 
+
+List the Category of vehicles that children drove and where injured. Top of the list are 01 - Bicyclette and 02 - Cyclomoteur < 50cm3 
+
+Some other vehciles of interest: 
+
+- 20 Special engine
+- 21 is an agricultural tractor
+- 30 Scooter < 50 cm3
+- 31 Motocyclette > 50 cm3 and <= 125cm3
+- 35/36 Quad bikes <50cm3 and >50cm3 respectively
+
+```{r eda12, message=FALSE, warning=FALSE, echo=FALSE}
+accidents_fulldata %>%
+  filter(age_profile =="child" & catu == 1, grav == 2 & !catv == 99) %>%
+  group_by(catv, grav) %>%
+  summarise(total = n()) %>%
+  ggplot(aes(as.factor(catv), total)) +
+  geom_point() + 
+  labs(title="Child Driver Fatalities") + 
+  xlab("Vehicle Category") +
+  ylab("Number of fatalities") +
+  theme(axis.text.x =element_text(angle = 90, hjust = 1)) 
+```
+
+The following map of France tragically shows the distribution of child fatalities throughout French departments. Immediately the departments of Pas-De-Calais and the Somme are highlighted where several children have tragically lost their lives. In addition to the obsevation of the vehicle classification and location in this area there is certainly justification for further study of the issue in this area and the possibility of targeted educational training or regionally state intervention.
+```{r eda13, message=FALSE, warning=FALSE, echo=FALSE}
+#Department with the greatest injury and mortality rates for children
+dep_child <- accidents_fulldata %>%
+  left_join(dep_summary, by = c("dep" = "department")) %>%
+  filter(age_profile =="child" & grav == 2) %>%
+  group_by(dep, depart_name, grav) %>%
+  summarise(total = n())
+
+shapefile_name <- paste0(getwd(), "/departements-100m.shp")
+france_shp <- readOGR(shapefile_name, stringsAsFactors = FALSE)  #Read the shapefile that has been downloaded
+france.childen.shp.df <- broom::tidy(france_shp, region = "code_insee")
+france.childen.shp.df <- france.childen.shp.df %>% filter(!id %in% c("971","972","973","974","976")) #Exclude French overseas territories
+france.childen.df <- france.childen.shp.df %>%           
+  left_join(dep_child, by = c("id" = "dep"))   #Link the data to the shapefile
+
+#Generate the ggplot and then apply the ggplotly function to make the map interactive.
+gg3 <- ggplot(france.childen.df, aes(text = depart_name)) + 
+  geom_polygon(aes(x = long, y = lat, group = group, fill= total), colour = "grey") + 
+  labs(title="French Child Accident Mortalities 2017")
+gg3
+ggplotly(gg3) 
+```
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+toc()
+```
+\newpage
+# Modelling
+##Model 1: GLM with stepwise feature determination
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+tic("Model 1: GLM with stepwise feature determination")
+```
+
+This model uses a stepwise approach to assessing the benefits of features to be added. Predictors are added step by step until no new predictors add any substantial value to the model. It is not guaranteed to find the best possible model. A criticism of the stepwise regression procedure is it can violate some statistical assumptions and result in a model that makes little sense in the real world. 
+
+```{r model1_1, message=FALSE, warning=FALSE, echo=FALSE}
+accidents_to_model <- accidents_fulldata %>% 
+  select(severity, mois, jour, day_night, age_profile, agg, atm, catr, catv, sexe)
+#Binarise the severity to enable use in the GLM
+accidents_to_model$severity <- as.numeric(accidents_to_model$severity == "normal")
+set.seed(1975)
+#Create the training and test set
+indexes <- createDataPartition(accidents_to_model$severity, times = 1, p = 0.8, list = FALSE)
+accTrain <- accidents_to_model[indexes, ]
+accTest <- accidents_to_model[-indexes, ]
+```
+
+The stepwise model steps from a null model (no feature) and incremently adds the features stepping towards a full model of all features. The stepwise will stop when there is no added value by adding an additional feature.
+```{r model1_2, message=FALSE, warning=FALSE, echo=FALSE}
+#Set the initial and full models. 
+null_model <- glm(severity ~ 1, data = accTrain, family = "binomial")
+full_model <- glm(severity ~ ., data = accTrain, family = "binomial")
+#Step forward from the initial model to the complete model 
+step_model <- step(null_model, scope = list(lower = null_model, upper = full_model), direction = "forward")
+step_prob <- predict(step_model, type = "response")
+```
+Plot the receiver operating characteristic (ROC). The ROC curve plots sensitivity (true positive rate - TPR) versus 1 - specificity or the false positive rate (FPR).
+We can see that we obtain higher sensitivity with this approach for all values of specificity, which implies it is in fact a better method than guessing.
+```{r model1_3, message=FALSE, warning=FALSE, echo=FALSE}
+ROC <- roc(accTrain$severity, step_prob)
+plot(ROC, col = "red")
+#Area under the curve
+auc(ROC)
+```
+
+The GLM model is fit based on the features identified from the stepwise feature approach. The model is fit against the test set. The average severity **`r mean(accidents_to_model$severity)`** is calculated and is compared with the predicted values to determine if the probability of the predicted severity is greater than the average. A confusion matrix is then run to estimate the accuracy of the model prediction against the test set.
+```{r model1_4, message=FALSE, warning=FALSE, echo=FALSE}
+#Fit best model identified during the stepwise feature determination
+fit <- glm(severity ~ agg + catv + age_profile + catr + day_night + sexe + atm, data = accTrain, family = "binomial")
+summary(fit)
+#Predict the results of each iteration. Predict takes a fitted object from the glm() function and fits the model against the test set.
+accTest$sev_prediction <- predict(fit, newdata = accTest, type = "response")
+#Estimate the mean (to be used to compare with the fitted results)
+mean(accidents_to_model$severity)
+
+# Predict the severity if probability of severity is greater than average
+accTest$severity_predicted <- ifelse(accTest$sev_prediction  > mean(accidents_to_model$severity), 1, 0)
+mean(accTest$severity_predicted, na.rm = TRUE)
+
+# Use a confusion matrix to tabulate each combination of prediction and actual value.
+confmatrix <- confusionMatrix(as.factor(accTest$severity_predicted), as.factor(accTest$severity))
+confmatrix
+model_results <- tibble(method = "GLM", 
+                        model_accuracy = confmatrix$overall['Accuracy'], 
+                        model_sens = confmatrix$byClass['Sensitivity'],
+                        model_spec = confmatrix$byClass['Specificity'],
+                        model_F1 = confmatrix$byClass['F1'],
+                        model_ppv = confmatrix$byClass['Pos Pred Value'],
+                        model_npv = confmatrix$byClass['Neg Pred Value'])
+```
+
+The model enables a prediction of the severity based on the features. Department and Commune have been removed to simplify the illustration. A phone call is received to the emergency service who then ask a series of questions. The parameters can be adjusted in order to generate a new prediction.
+```{r model1_5, message=FALSE, warning=FALSE}
+enter_prediction <- data.frame(day_night = "night",        # Day or night
+                               age_profile = "under40",   # Drivers age, if known
+                               agg = 1,                  # Built up area or countryside?
+                               atm = 1,                  # Weather conditions
+                               catr = 1,                 # Highway, national route, department road?
+                               catv = 7,                # Type of vehicle
+                               sexe = 2)                 # Sex of the driver
+
+result <- predict(fit, newdata = enter_prediction, type = "response")
+ifelse((1 - result) > mean(accidents_to_model$severity), "Critical Alert", "Normal Responders") 
+predict(fit, newdata = enter_prediction, type = "terms") 
+```
+
+The prediction for this model is to send **`r ifelse((1 - result) > mean(accidents_to_model$severity), "Critical Alert", "Normal Responders")`** to the accident.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+toc()
+```
+\newpage
+
+\newpage
+##Model 2: RPart classification
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+tic("Model 2: RPart Classification")
+```
+Build an Accident Severity model predicting accident severity outcome versus the predictors/features using the RPart machine learning method. Use the same features that were applied in model 1.
+
+The following function creates entries in a tibble that contains all the results of each model assessed. It will be printed in the results section of this report.
+```{r message=FALSE, warning=FALSE}
+#Calculate the average rating for each movie and calculate the bias (difference) for each
+add_results <- function(n_accuracy, n_sens, n_spec, n_F1, n_ppv, n_npv, model_method){
+  bind_rows(model_results,
+            tibble(method=model_method,  
+                   model_accuracy = n_accuracy,
+                   model_sens = n_sens,
+                   model_spec = n_spec,
+                   model_F1 = n_F1,
+                   model_ppv = n_ppv,
+                   model_npv = n_npv))
+}
+```
+\scriptsize
+```{r model2_1, message=FALSE, warning=FALSE}
+set.seed(1976)
+accidents_to_model <- accidents_fulldata %>% 
+  select(severity, agg, catv, age_profile, catr, day_night, sexe, atm)
+
+#Create the training and test sets
+indexes <- createDataPartition(accidents_to_model$severity, times = 1, p = 0.8, list = FALSE)
+accTrain <- accidents_to_model[indexes, ]
+accTest <- accidents_to_model[-indexes, ]
+#Fit the model using rpart() 
+modelFit <- rpart(as.factor(severity) ~ .,data=accTrain, method = "class", control = rpart.control(cp = 0))
+rpart_prediction <- predict(modelFit, accTest, type = "class")
+# Use a confusion matrix to tabulate each combination of prediction and actual value.
+confmatrix2 <- confusionMatrix(rpart_prediction, as.factor(accTest$severity))
+confmatrix2
+model_results <- add_results(confmatrix2$overall['Accuracy'], 
+                             confmatrix2$byClass['Sensitivity'],
+                             confmatrix2$byClass['Specificity'],
+                             confmatrix2$byClass['F1'],
+                             confmatrix2$byClass['Pos Pred Value'],
+                             confmatrix2$byClass['Neg Pred Value'],
+                             "Rpart")
+```
+\normalsize
+
+Model a phone call received to the emergency service who then ask a series of questions. The parameters can be adjusted in order to generate a new prediction.
+\scriptsize
+```{r model2_2, message=FALSE, warning=FALSE}
+enter_rpart_pred <- data.frame(day_night = "night",        # Day or night
+                               age_profile = "under40",   # Drivers age, if known
+                               agg = 1,                  # Built up area or countryside?
+                               atm = 1,                  # Weather conditions
+                               catr = 1,                 # Highway, national route, department road?
+                               catv = 7,                # Type of vehicle
+                               sexe = 2)                 # Sex of the driver
+
+result <- predict(modelFit, enter_rpart_pred, type = "class")
+result
+plotcp(modelFit)
+rpart.plot(prune(modelFit, cp = 0.00045), type = 3, box.palette = c("red", "green"), fallen.leaves = TRUE)
+```
+\normalsize
+
+The prediction for this model is to send **`r result`** responders to the accident.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+toc()
+```
+
+# Results Section
+The results of both models listed as follows:
+```{r results, message=FALSE, warning=FALSE}
+model_results %>%
+  kable() %>%
+  kable_styling("striped", full_width = F) 
+```
+
+A principal component analysis has also been included in the R code submitted. However as the results of the PCA were not satisfactory they have not been includded in the final report. Two models are compared for this project submission.
+\newpage
+
+# Conclusion
+This section contains the summary of key main findings from the Choose Your Own Capstone project. The course was an excellent introduction to Data Science and R and this project in particular was an interesting topic to study.
+
+The accuracy of the RPart model is signficantly higher than the GLM method and therefore appears to be the better model. However it is important to consider the other results of the confusion matrices of the models before making a decision. The sensitivity (true positive rate) differs considerably. The GLM has a much higher sensitivity than the RPart model infering that the prediction of accidents being severe/critical is higher. There are less accidents predicted as normal severity when in fact the actual accident was severe.
+
+Another comparison that helps compare the models is the F1 Score. This is the harmonic average of the model precision (positive prediction value) and recall (sensitivity).
+
+\[ F_1 Score = (Precision * Recall) / (Precision * Recall) \]
+
+Where:
+
+$Precision$ = true_positives / (true_positives + false_positives)
+
+$Recall$ = true_positives / (true_positives + false_negatives)
+
+The F1 score of the GLM model is significantly better performing than the RPart. 
+
+In conclusion, the GLM model is selected as the more appropriate model to be used based on a comparison of the models. However the results of both models are not satisfactory. The F1 scores do not provide confidence in the models, in addition to the overal accuracy. The results of the models show that further improvement of the models is necessary. 
+
+For a future study more machine learning methods should be selected to provide a comparison of a greater number of algorithms. Also further dummifcation of the categorical data may improve the performance of the general logistic regression and classification algorithms.
+
+Thank you for reading and assessing this submission for the [HarvardX](https://harvardx.harvard.edu) PH125.9x Professional Certificate in Data Science capstone project. The course was an excellent introduction to Data Science and R Programming and I would like to greatly thank Professor Rafael A. Irizarry, the course staff team, edx platform teams and the other course students who have provided great solutions and advice in the course discussion forums. 
+
+\newpage
+# References
+Please note that the references had to be added manually as it was not an option to include a .bib file. It is also possible to add a reference inline in the YAML header though this was not preferred.
+
+European Commission. April 2018. *Road Safety in the European Union – Trends, statistics and main challenges*. Publications Office of the European Union, ISBN 978-92-79-80281-2. https://ec.europa.eu/transport/road_safety/sites/roadsafety/files/vademecum_2018.pdf. 
+
+Chinnamgari, Sunil. 2019. *R Machine Learning Projects Implement Supervised, Unsupervised, and Reinforcement Learning Techniques Using R 3. 5*. Birmingham: Packt Publishing Ltd.
+
+Hodnett, Mark. 2018. *R Deep Learning Essentials : A Step-by-Step Guide to Building Deep Learning Models Using Tensorflow, Keras, and Mxnet*. Birmingham, UK: Packt Publishing.
+
+Irizzarry, Rafael A. Prof. 2019. *Introduction to Data Science*. https://rafalab.github.io/dsbook/large-datasets.html#recommendation-systems.
+
+Voulgaris, Zacharias. 2017. *Data Science Mindset, Methodologies, and Misconceptions*. City: Technics Pubns Llc.
+
+Wickham, Hadley, and Garrett Grolemund. 2017. *R for Data Science: Import, Tidy, Transform, Visualize, and Model Data*. 1st ed. O’Reilly Media, Inc.
+
+Viswanathanm, Shanth, Viswanathan, Viswa, Yu-Wei,Chiu and Gohil, Atmajitsinh.*R: Recipes for Analysis, Visualization and Machine Learning*. Published by Packt Publishing, 2016
+
+
+
